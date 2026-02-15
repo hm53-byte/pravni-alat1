@@ -4,9 +4,9 @@ from datetime import date
 # -----------------------------------------------------------------------------
 # 1. KONFIGURACIJA I CSS
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="LegalTech Suite v12.0 (Table Layout)", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="LegalTech Suite v13.0 (Trgovački Sud Fix)", page_icon="⚖️", layout="wide")
 
-# CSS - Dizajn prilagođen za Word (koristeći tablice i ispravna poravnanja)
+# CSS - Dizajn prilagođen za Word
 css_stilovi = """
 <style>
     body {
@@ -28,14 +28,12 @@ css_stilovi = """
         font-family: 'Times New Roman', serif;
     }
     
-    /* KLJUČNO 1: Podaci o strankama moraju biti LIJEVO da se ne razvlače */
     .party-info {
         text-align: left; 
         margin-bottom: 15px;
         font-family: 'Times New Roman', serif;
     }
 
-    /* KLJUČNO 2: Tekst ugovora (paragrafi) su OBOSTRANI (Justify) */
     .doc-body {
         text-align: justify;
         text-justify: inter-word;
@@ -90,13 +88,13 @@ def pripremi_za_word(html_sadrzaj):
     """
 
 def format_text(text):
-    """Pretvara novi red u <br>."""
     if text:
         return text.replace('\n', '<br>')
     return ""
 
 def unos_stranke(oznaka, key_prefix):
     st.markdown(f"**{oznaka}**")
+    # Vraća tuple (tekst, tip_osobe)
     tip = st.radio(f"Tip osobe ({oznaka})", ["Fizička osoba", "Pravna osoba"], key=f"{key_prefix}_tip", horizontal=True, label_visibility="collapsed")
     
     col1, col2 = st.columns(2)
@@ -126,7 +124,7 @@ def zaglavlje_sastavljaca():
         return ""
 
 # -----------------------------------------------------------------------------
-# 3. GENERATORI DOKUMENATA (SADA KORISTE TABLE LAYOUT + LEFT ALIGN)
+# 3. GENERATORI DOKUMENATA
 # -----------------------------------------------------------------------------
 
 def generiraj_ugovor(tip_ugovora, stranka1, stranka2, podaci, opcije):
@@ -153,8 +151,6 @@ def generiraj_ugovor(tip_ugovora, stranka1, stranka2, podaci, opcije):
     }
     naslov, u1, u2 = titles[tip_ugovora]
 
-    # OVDJE JE PROMJENA: .party-info (left) umjesto .justified
-    # I HTML TABLE za potpise
     return f"""
     <div class='header-doc'>{naslov}</div>
 
@@ -417,7 +413,7 @@ modul = st.sidebar.radio(
     "ODABERI USLUGU:",
     ["📝 Ugovori (+Kapara/Solemn.)", "⚖️ Tužbe (+Troškovnik)", "🔨 Ovršni Prijedlog", "📜 Žalbe", "🔐 Tabularna Izjava", "🧮 Kamate"]
 )
-st.sidebar.info("v12.0: Popravljeno poravnanje (Table Layout).")
+st.sidebar.info("v13.0: Automatski Trgovački sud.")
 
 # --- 1. UGOVORI ---
 if "Ugovori" in modul:
@@ -437,8 +433,9 @@ if "Ugovori" in modul:
     st.markdown("---")
 
     c1, c2 = st.columns(2)
-    s1_txt, _ = unos_stranke("PRVA STRANA", "u1")
-    s2_txt, _ = unos_stranke("DRUGA STRANA", "u2")
+    # Bitno: hvatamo i 'tip_osobe' (drugi dio tuple-a)
+    s1_txt, s1_tip = unos_stranke("PRVA STRANA", "u1")
+    s2_txt, s2_tip = unos_stranke("DRUGA STRANA", "u2")
     
     mjesto = st.text_input("Mjesto", value="Zagreb")
     sud = st.text_input("Sud", value="Stvarno nadležni sud u Zagrebu")
@@ -480,10 +477,17 @@ elif "Tužbe" in modul:
     st.header("Tužba sa Troškovnikom")
     zastupanje = zaglavlje_sastavljaca()
     c1, c2 = st.columns(2)
-    tuz_txt, _ = unos_stranke("TUŽITELJ", "t1")
-    tuzen_txt, _ = unos_stranke("TUŽENIK", "t2")
+    # Hvatamo i tip osobe (Fizička/Pravna)
+    tuz_txt, tuz_tip = unos_stranke("TUŽITELJ", "t1")
+    tuzen_txt, tuzen_tip = unos_stranke("TUŽENIK", "t2")
     
-    sud = st.text_input("Sud", value="OPĆINSKI SUD U...")
+    # --- AUTOMATSKA DETEKCIJA TRGOVAČKOG SUDA ---
+    suggested_sud = "OPĆINSKI SUD U..."
+    if tuz_tip == "Pravna" and tuzen_tip == "Pravna":
+        suggested_sud = "TRGOVAČKI SUD U ZAGREBU"
+        st.info("💡 Detektirano da su obje stranke pravne osobe -> Predložen Trgovački sud.")
+    
+    sud = st.text_input("Sud", value=suggested_sud)
     vrsta = st.text_input("Radi", value="Isplate")
     vps = st.number_input("VPS (EUR)", min_value=0.0)
     
