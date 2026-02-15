@@ -4,7 +4,7 @@ from datetime import date
 # -----------------------------------------------------------------------------
 # 1. KONFIGURACIJA I CSS
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="LegalTech Suite v13.0 (Trgovački Sud Fix)", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="LegalTech Suite v14.0 (Tabularna Fix)", page_icon="⚖️", layout="wide")
 
 # CSS - Dizajn prilagođen za Word
 css_stilovi = """
@@ -55,6 +55,15 @@ css_stilovi = """
         font-family: 'Courier New', monospace;
         font-size: 10pt;
     }
+    
+    /* Isticanje klauzule */
+    .clausula {
+        font-weight: bold;
+        font-style: italic;
+        background-color: #f9f9f9;
+        padding: 10px;
+        border-left: 3px solid #333;
+    }
 </style>
 """
 
@@ -94,26 +103,32 @@ def format_text(text):
 
 def unos_stranke(oznaka, key_prefix):
     st.markdown(f"**{oznaka}**")
-    # Vraća tuple (tekst, tip_osobe)
+    # Vraća tuple (html_tekst, tip_osobe, ima_oib_bool)
     tip = st.radio(f"Tip osobe ({oznaka})", ["Fizička osoba", "Pravna osoba"], key=f"{key_prefix}_tip", horizontal=True, label_visibility="collapsed")
     
     col1, col2 = st.columns(2)
+    has_valid_data = False
+    
     if tip == "Fizička osoba":
         ime = col1.text_input(f"Ime i Prezime", key=f"{key_prefix}_ime")
         oib = col2.text_input(f"OIB", max_chars=11, key=f"{key_prefix}_oib")
         adresa = st.text_input(f"Adresa (Ulica, Grad)", key=f"{key_prefix}_adresa")
+        
         if ime and oib and adresa:
-            return f"<b>{ime}</b><br>Adresa: {adresa}<br>OIB: {oib}", "Fizička"
-        return "____________________ (ime), OIB: ____________________", "Fizička"
+            has_valid_data = True
+            return f"<b>{ime}</b><br>Adresa: {adresa}<br>OIB: {oib}", "Fizička", has_valid_data
+        return "____________________ (ime), OIB: ____________________", "Fizička", has_valid_data
     else: 
         tvrtka = col1.text_input(f"Tvrtka", key=f"{key_prefix}_tvrtka")
         oib = col2.text_input(f"OIB", max_chars=11, key=f"{key_prefix}_oib_pravna")
         mbs = col1.text_input(f"MBS", key=f"{key_prefix}_mbs")
         zastupnik = col2.text_input(f"Zastupan po", key=f"{key_prefix}_zastupnik")
         sjediste = st.text_input(f"Sjedište", key=f"{key_prefix}_sjediste")
+        
         if tvrtka and oib:
-            return f"<b>{tvrtka}</b><br>Sjedište: {sjediste}<br>OIB: {oib}, MBS: {mbs}<br>Zastupana po: {zastupnik}", "Pravna"
-        return "____________________ (tvrtka), OIB: ____________________", "Pravna"
+            has_valid_data = True
+            return f"<b>{tvrtka}</b><br>Sjedište: {sjediste}<br>OIB: {oib}, MBS: {mbs}<br>Zastupana po: {zastupnik}", "Pravna", has_valid_data
+        return "____________________ (tvrtka), OIB: ____________________", "Pravna", has_valid_data
 
 def zaglavlje_sastavljaca():
     with st.expander("ℹ️ PODACI O ZASTUPANJU (Punomoćnik)", expanded=False):
@@ -368,29 +383,39 @@ def generiraj_zalbu(sud1, sud2, broj, razlozi, tekst, troskovi):
     </table>
     """
 
-def generiraj_tabularnu(prodavatelj, kupac, ko, cestica, ulozak):
+# --- NOVA GENERACIJA TABULARNE ISPRAVE (ZV/ZZK USKLAĐENO) ---
+def generiraj_tabularnu(prodavatelj, kupac, ko, cestica, ulozak, opis, datum_ugovora):
     return f"""
-    <div class='header-doc'>TABULARNA IZJAVA<br><span style='font-size: 12pt; font-weight: normal;'>(Clausula Intabulandi)</span></div>
-    
-    <div class='doc-body'>
-    Ja, <b>PRODAVATELJ:</b>
-    </div>
+    <div class='header-doc'>TABULARNA IZJAVA<br><span style='font-size: 11pt; font-weight: normal;'>(Clausula Intabulandi)</span></div>
     
     <div class='party-info'>
+    <b>DAVATELJ IZJAVE (PRODAVATELJ/KNJIŽNI PREDNIK):</b><br>
     {prodavatelj}
     </div>
-
-    <div class='doc-body'>
-    izjavljujem da sam od <b>KUPCA:</b>
-    </div>
-
+    
     <div class='party-info'>
+    <b>STJECATELJ PRAVA (KUPAC/KNJIŽNI SLJEDNIK):</b><br>
     {kupac}
     </div>
 
     <div class='doc-body'>
-    primio cjelokupnu cijenu te ga ovlašćujem da bez mog daljnjeg pitanja ishodi uknjižbu prava vlasništva na nekretnini:<br>
-    <b>K.O. {ko}, čestica {cestica}</b> {f', ZK uložak {ulozak}' if ulozak else ''}.
+    <b>1. PRAVNI TEMELJ (CAUSA):</b><br>
+    Ova izjava izdaje se na temelju Ugovora o kupoprodaji nekretnine koji je zaključen dana {datum_ugovora}, čime se potvrđuje da je pravni posao valjan i da je obveza isplate kupoprodajne cijene u cijelosti izvršena.
+    </div>
+
+    <div class='doc-body'>
+    <b>2. PREDMETNA NEKRETNINA:</b><br>
+    Nekretnina upisana u zemljišne knjige:<br>
+    - Katastarska općina: <b>{ko}</b><br>
+    - Broj zemljišnoknjižne čestice (k.č.br): <b>{cestica}</b><br>
+    {f'- Broj ZK uloška: <b>{ulozak}</b><br>' if ulozak else ''}
+    {f'- Opis u naravi: {opis}' if opis else ''}
+    </div>
+
+    <div class='doc-body clausula'>
+    <b>3. IZRIČITA IZJAVA VOLJE (CLAUSULA INTABULANDI):</b><br>
+    <br>
+    Ja, gore imenovani PRODAVATELJ, ovime izričito i bezuvjetno izjavljujem da sam od KUPCA primio cjelokupan iznos ugovorene kupoprodajne cijene, te slijedom toga <u>izričito ovlašćujem KUPCA</u> da na temelju ove izjave, bez mog bilo kakvog daljnjeg pitanja, sudjelovanja, odobrenja ili suglasnosti, zatraži i postigne u zemljišnim knjigama nadležnog suda <u>uknjižbu prava vlasništva na svoje ime</u> na gore opisanoj nekretnini.
     </div>
     
     <br><br>
@@ -398,7 +423,10 @@ def generiraj_tabularnu(prodavatelj, kupac, ko, cestica, ulozak):
         <tr>
             <td width="40%"></td>
             <td width="60%" align="center">
-                <b>PRODAVATELJ</b><br>(Ovjera potpisa JB)<br><br>______________________
+                U Zagrebu, dana {date.today().strftime('%d.%m.%Y.')}<br><br>
+                <b>PRODAVATELJ</b><br>
+                (Potpis mora biti ovjeren kod Javnog bilježnika)<br><br><br>
+                ______________________
             </td>
         </tr>
     </table>
@@ -413,7 +441,7 @@ modul = st.sidebar.radio(
     "ODABERI USLUGU:",
     ["📝 Ugovori (+Kapara/Solemn.)", "⚖️ Tužbe (+Troškovnik)", "🔨 Ovršni Prijedlog", "📜 Žalbe", "🔐 Tabularna Izjava", "🧮 Kamate"]
 )
-st.sidebar.info("v13.0: Automatski Trgovački sud.")
+st.sidebar.info("v14.0: Tabularna isprava (ZZK compliant).")
 
 # --- 1. UGOVORI ---
 if "Ugovori" in modul:
@@ -433,9 +461,8 @@ if "Ugovori" in modul:
     st.markdown("---")
 
     c1, c2 = st.columns(2)
-    # Bitno: hvatamo i 'tip_osobe' (drugi dio tuple-a)
-    s1_txt, s1_tip = unos_stranke("PRVA STRANA", "u1")
-    s2_txt, s2_tip = unos_stranke("DRUGA STRANA", "u2")
+    s1_txt, s1_tip, _ = unos_stranke("PRVA STRANA", "u1")
+    s2_txt, s2_tip, _ = unos_stranke("DRUGA STRANA", "u2")
     
     mjesto = st.text_input("Mjesto", value="Zagreb")
     sud = st.text_input("Sud", value="Stvarno nadležni sud u Zagrebu")
@@ -477,9 +504,8 @@ elif "Tužbe" in modul:
     st.header("Tužba sa Troškovnikom")
     zastupanje = zaglavlje_sastavljaca()
     c1, c2 = st.columns(2)
-    # Hvatamo i tip osobe (Fizička/Pravna)
-    tuz_txt, tuz_tip = unos_stranke("TUŽITELJ", "t1")
-    tuzen_txt, tuzen_tip = unos_stranke("TUŽENIK", "t2")
+    tuz_txt, tuz_tip, _ = unos_stranke("TUŽITELJ", "t1")
+    tuzen_txt, tuzen_tip, _ = unos_stranke("TUŽENIK", "t2")
     
     # --- AUTOMATSKA DETEKCIJA TRGOVAČKOG SUDA ---
     suggested_sud = "OPĆINSKI SUD U..."
@@ -519,8 +545,8 @@ elif "Ovršni" in modul:
     st.header("Ovrha + Troškovnik")
     jb = st.text_input("Javni bilježnik")
     c1, c2 = st.columns(2)
-    ov1, _ = unos_stranke("OVRHOVODITELJ", "ov1")
-    ov2, _ = unos_stranke("OVRŠENIK", "ov2")
+    ov1, _, _ = unos_stranke("OVRHOVODITELJ", "ov1")
+    ov2, _, _ = unos_stranke("OVRŠENIK", "ov2")
     
     isprava = st.text_input("Vjerodostojna isprava")
     glavnica = st.number_input("Glavnica (EUR)")
@@ -569,21 +595,37 @@ elif "Žalbe" in modul:
         word_data = pripremi_za_word(doc_html)
         st.download_button("💾 Preuzmi Word", data=word_data, file_name="Zalba.doc", mime="application/msword")
 
-# --- 5. TABULARNA ---
+# --- 5. TABULARNA (VALIDIRANA) ---
 elif "Tabularna" in modul:
-    st.header("Tabularna Izjava")
+    st.header("Tabularna Izjava (Clausula Intabulandi)")
+    st.warning("⚠️ Ovu ispravu potpisuje samo PRODAVATELJ i njegov potpis MORA biti ovjeren kod javnog bilježnika!")
+    
     c1, c2 = st.columns(2)
-    prod, _ = unos_stranke("PRODAVATELJ", "tp")
-    kup, _ = unos_stranke("KUPAC", "tk")
-    ko = st.text_input("K.O.")
-    cestica = st.text_input("Čestica")
-    ulozak = st.text_input("ZK Uložak")
+    prod, _, prod_valid = unos_stranke("PRODAVATELJ (Knjižni prednik)", "tp")
+    kup, _, kup_valid = unos_stranke("KUPAC (Knjižni sljednik)", "tk")
+    
+    st.markdown("---")
+    st.subheader("Podaci o nekretnini i ugovoru")
+    
+    datum_ug = st.date_input("Datum kupoprodajnog ugovora (Causa)")
+    
+    col_k1, col_k2 = st.columns(2)
+    ko = col_k1.text_input("Katastarska općina (npr. Trešnjevka)")
+    cestica = col_k2.text_input("Broj čestice (npr. 1234/1)")
+    ulozak = st.text_input("Broj ZK uloška (opcionalno)")
+    opis = st.text_area("Opis u naravi (opcionalno)", placeholder="Npr. Stan na I. katu...")
 
-    if st.button("Kreiraj"):
-        doc_html = generiraj_tabularnu(prod, kup, ko, cestica, ulozak)
-        st.markdown(f"<div class='legal-doc'>{doc_html}</div>", unsafe_allow_html=True)
-        word_data = pripremi_za_word(doc_html)
-        st.download_button("💾 Preuzmi Word", data=word_data, file_name="Tabularna.doc", mime="application/msword")
+    if st.button("Kreiraj Tabularnu"):
+        # VALIDACIJA
+        if not prod_valid or not kup_valid:
+            st.error("⛔ Nedostaju podaci o strankama! Obavezan je unos Imena i OIB-a.")
+        elif not ko or not cestica:
+            st.error("⛔ Nedostaju ključni podaci o nekretnini (K.O. i Broj čestice).")
+        else:
+            doc_html = generiraj_tabularnu(prod, kup, ko, cestica, ulozak, opis, datum_ug.strftime('%d.%m.%Y.'))
+            st.markdown(f"<div class='legal-doc'>{doc_html}</div>", unsafe_allow_html=True)
+            word_data = pripremi_za_word(doc_html)
+            st.download_button("💾 Preuzmi Word", data=word_data, file_name="Tabularna.doc", mime="application/msword")
 
 # --- 6. KAMATE ---
 elif "Kamate" in modul:
